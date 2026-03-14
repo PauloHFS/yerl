@@ -14,7 +14,8 @@ help: ## Exibe esta mensagem de ajuda
 	@echo "Alvos disponíveis:"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-build: ## Compila o binário do backend
+build: ## Compila o binário do backend (embutindo o frontend gerado)
+	npm --prefix $(WEB_DIR) run build
 	CGO_ENABLED=0 go build -ldflags="-w -s" -o bin/$(APP_NAME) $(MAIN_PATH)
 
 run: ## Executa o backend isoladamente
