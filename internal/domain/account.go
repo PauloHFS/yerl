@@ -2,6 +2,8 @@ package domain
 
 import "context"
 
+//go:generate mockgen -destination=../mock/account_mock.go -package=mock -source=account.go
+
 type Account struct {
 	ID           string
 	Name         string
