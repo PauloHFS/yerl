@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+//go:generate mockgen -destination=../mock/message_mock.go -package=mock -source=message.go
+
 type Message struct {
 	ID        string
 	ChannelID string

@@ -1,7 +1,7 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { tanstackRouter } from '@tanstack/router-vite-plugin'
-
 
 export default defineConfig({
   plugins: [react(), tanstackRouter()],
@@ -12,5 +12,10 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+  },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: './vitest.setup.ts',
   },
 })

@@ -31,8 +31,15 @@ clean: ## Remove binários e dependências locais
 	rm -rf bin/
 	rm -rf $(WEB_DIR)/node_modules/
 
-test: ## Executa todos os testes do projeto Go
+test: ## Executa todos os testes (Go e Vitest)
 	go test -v ./...
+	npm --prefix $(WEB_DIR) run test
+
+test-web: ## Executa apenas os testes do frontend
+	npm --prefix $(WEB_DIR) run test
+
+test-web-watch: ## Executa os testes do frontend em modo watch
+	npm --prefix $(WEB_DIR) run test:watch
 
 lint: ## Executa o golangci-lint
 	golangci-lint run
