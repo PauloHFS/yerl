@@ -2,8 +2,9 @@ APP_NAME=yerl
 MAIN_PATH=cmd/server/main.go
 DB_PATH=./yerl.db
 MIGRATIONS_DIR=migrations
+WEB_DIR=web
 
-.PHONY: all build run clean test lint sqlc new-migration tidy generate help
+.PHONY: all build run dev install-web clean test lint sqlc new-migration tidy generate help
 
 all: build
 
@@ -13,16 +14,23 @@ help: ## Exibe esta mensagem de ajuda
 	@echo "Alvos disponíveis:"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-build: ## Compila o binário da aplicação (CGO desativado)
+build: ## Compila o binário do backend
 	CGO_ENABLED=0 go build -ldflags="-w -s" -o bin/$(APP_NAME) $(MAIN_PATH)
 
-run: ## Executa a aplicação diretamente
+run: ## Executa o backend isoladamente
 	go run $(MAIN_PATH)
 
-clean: ## Remove o diretório de binários
-	rm -rf bin/
+dev: ## Inicia o backend (Go) e o frontend (Vite) simultaneamente
+	npx concurrently -k -p "[{name}]" -n "API,WEB" -c "cyan.bold,green.bold" "go run $(MAIN_PATH)" "npm --prefix $(WEB_DIR) run dev"
 
-test: ## Executa todos os testes do projeto
+install-web: ## Instala as dependências do frontend (node_modules)
+	npm --prefix $(WEB_DIR) install
+
+clean: ## Remove binários e dependências locais
+	rm -rf bin/
+	rm -rf $(WEB_DIR)/node_modules/
+
+test: ## Executa todos os testes do projeto Go
 	go test -v ./...
 
 lint: ## Executa o golangci-lint
