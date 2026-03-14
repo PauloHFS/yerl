@@ -1,0 +1,25 @@
+# Marcar arquivos gerados para serem colapsados no GitHub/GitLab
+internal/mock/** linguist-generated=true
+internal/repository/sqlite/sqlc/** linguist-generated=true
+web/src/routeTree.gen.ts linguist-generated=true
+
+# Garantir finais de linha consistentes (LF) em todos os ambientes
+* text=auto eol=lf
+*.go text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.css text eol=lf
+*.sql text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.env.example text eol=lf
+Makefile text eol=lf
+
+# Binários e imagens
+*.db binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
