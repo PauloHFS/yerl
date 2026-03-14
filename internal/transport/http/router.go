@@ -53,6 +53,27 @@ func NewRouter(
 	// Agrupamento de rotas do domínio Message
 	mux.HandleFunc("POST /api/messages", messageHandler.Send)
 
+	// Scalar API Reference
+	mux.HandleFunc("GET /api/docs", func(w http.ResponseWriter, r *http.Request) {
+		html := `<!doctype html>
+<html>
+  <head>
+    <title>Yerl API Reference</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+    <script id="api-reference" data-url="/api/swagger.json"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+  </body>
+</html>`
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write([]byte(html))
+	})
+	
+	// Serve OpenAPI Spec
+	mux.Handle("GET /api/swagger.json", http.StripPrefix("/api/", http.FileServer(http.Dir("./docs"))))
+
 	// Servir o Frontend no fallback das rotas
 	serveSPA(mux)
 

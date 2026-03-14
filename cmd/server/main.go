@@ -23,6 +23,12 @@ func getEnvOrDefault(key, fallback string) string {
 	return fallback
 }
 
+// @title           Yerl API
+// @version         1.0
+// @description     This is the Yerl (Discord clone) backend API.
+// @host            localhost:8080
+// @BasePath        /
+
 func main() {
 	// Ignora erro no godotenv pois em produção pode não existir o arquivo .env e vir via sistema
 	_ = godotenv.Load()

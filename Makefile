@@ -41,6 +41,9 @@ test-web: ## Executa apenas os testes do frontend
 test-web-watch: ## Executa os testes do frontend em modo watch
 	npm --prefix $(WEB_DIR) run test:watch
 
+docs: ## Generate OpenAPI documentation using swag
+	swag init -g cmd/server/main.go --parseDependency --parseInternal
+
 lint: ## Executa o golangci-lint
 	golangci-lint run
 

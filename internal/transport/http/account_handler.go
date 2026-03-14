@@ -15,14 +15,24 @@ func NewAccountHandler(service domain.AccountService) *AccountHandler {
 	return &AccountHandler{service: service}
 }
 
-type registerRequest struct {
+type RegisterRequest struct {
 	Name     string `json:"name"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
+// @Summary      Register an account
+// @Description  Creates a new user account with email and password
+// @Tags         accounts
+// @Accept       json
+// @Produce      json
+// @Param        request  body      RegisterRequest  true  "Account Registration Data"
+// @Success      201      {string}  string "Created"
+// @Failure      400      {string}  string "Bad Request"
+// @Failure      500      {string}  string "Internal Server Error"
+// @Router       /api/register [post]
 func (h *AccountHandler) Register(w http.ResponseWriter, r *http.Request) {
-	var req registerRequest
+	var req RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
