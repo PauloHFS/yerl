@@ -16,6 +16,7 @@ Seu próprio Discord self-hosted
 ## Tech
 
 ### Backend
+
 - Golang (slog para logging estruturado)
 - SQLite
 - sqlc (geração de código SQL type-safe)
@@ -23,8 +24,10 @@ Seu próprio Discord self-hosted
 - go:embed (embutir frontend no binário)
 - testify (asserções de teste)
 - mockgen (geração de mocks)
+- pion/webrtc (SFU)
 
 ### Frontend
+
 - React
 - TypeScript
 - Vite

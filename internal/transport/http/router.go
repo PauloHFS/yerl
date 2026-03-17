@@ -43,6 +43,7 @@ func serveSPA(mux *http.ServeMux) {
 func NewRouter(
 	accountHandler *AccountHandler,
 	messageHandler *MessageHandler,
+	sfuHandler *SFUHandler,
 ) http.Handler {
 	mux := http.NewServeMux()
 
@@ -52,6 +53,9 @@ func NewRouter(
 
 	// Agrupamento de rotas do domínio Message
 	mux.HandleFunc("POST /api/messages", messageHandler.Send)
+
+	// WebRTC SFU Signaling
+	mux.HandleFunc("GET /api/ws", sfuHandler.HandleWS)
 
 	// Scalar API Reference
 	mux.HandleFunc("GET /api/docs", func(w http.ResponseWriter, r *http.Request) {
@@ -77,5 +81,13 @@ func NewRouter(
 	// Servir o Frontend no fallback das rotas
 	serveSPA(mux)
 
-	return LoggingMiddleware(mux)
+	// Aplicamos o middleware apenas nas rotas que não sejam o WebSocket
+	// para evitar problemas com o Hijacker/Upgrade do protocolo.
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/ws" {
+			mux.ServeHTTP(w, r)
+			return
+		}
+		LoggingMiddleware(mux).ServeHTTP(w, r)
+	})
 }

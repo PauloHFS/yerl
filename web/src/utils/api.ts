@@ -1,8 +1,14 @@
+export interface APIErrorResponse {
+  message?: string;
+  error?: string;
+  [key: string]: unknown;
+}
+
 export class APIError extends Error {
   public status: number;
-  public data?: any;
+  public data?: unknown;
 
-  constructor(message: string, status: number, data?: any) {
+  constructor(message: string, status: number, data?: unknown) {
     super(message);
     this.name = 'APIError';
     this.status = status;
@@ -37,15 +43,15 @@ export async function apiClient<T>(endpoint: string, options?: RequestInit): Pro
     const response = await fetch(url, config);
 
     if (!response.ok) {
-      let errorData;
+      let errorData: unknown;
       try {
         errorData = await response.json();
       } catch {
         errorData = await response.text();
       }
       
-      const errorMessage = (errorData && (errorData.message || errorData.error)) 
-        || `API Request Failed with status ${response.status}`;
+      const errorResponse = errorData as APIErrorResponse | null;
+      const errorMessage = errorResponse?.message ?? errorResponse?.error ?? `API Request Failed with status ${response.status}`;
         
       throw new APIError(errorMessage, response.status, errorData);
     }
@@ -57,7 +63,7 @@ export async function apiClient<T>(endpoint: string, options?: RequestInit): Pro
     }
     
     const text = await response.text();
-    return text ? JSON.parse(text) : ({} as T);
+    return (text ? JSON.parse(text) : {}) as T;
 
   } catch (error) {
     if (error instanceof APIError) {
