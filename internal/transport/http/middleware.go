@@ -1,8 +1,11 @@
 package http
 
 import (
+	"bufio"
 	"context"
+	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"runtime/debug"
 	"time"
@@ -44,6 +47,20 @@ func (w *responseWriterInterceptor) Write(b []byte) (int, error) {
 	n, err := w.ResponseWriter.Write(b)
 	w.bodySize += n
 	return n, err
+}
+
+func (w *responseWriterInterceptor) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	h, ok := w.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, errors.New("ResponseWriter does not implement http.Hijacker")
+	}
+	return h.Hijack()
+}
+
+func (w *responseWriterInterceptor) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 // LoggingMiddleware implementa o padrão de Wide Events (Canonical Log Lines)

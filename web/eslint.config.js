@@ -5,10 +5,12 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 import reactX from 'eslint-plugin-react-x'
 import reactDom from 'eslint-plugin-react-dom'
+import pluginQuery from '@tanstack/eslint-plugin-query'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
   globalIgnores(['dist']),
+  ...pluginQuery.configs['flat/recommended'],
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -22,6 +24,7 @@ export default defineConfig([
     ],
     rules: {
       'no-console': ['error', { allow: ['info', 'warn', 'error'] }],
+      'react-refresh/only-export-components': 'off',
     },
     languageOptions: {
       ecmaVersion: 2020,
@@ -32,4 +35,8 @@ export default defineConfig([
       },
     },
   },
+  {
+    files: ['vitest.setup.ts', 'eslint.config.js', 'postcss.config.js', 'tailwind.config.js', 'vite.config.ts'],
+    extends: [tseslint.configs.disableTypeChecked],
+  }
 ])
