@@ -16,8 +16,8 @@ func NewAccountRepository(db *sql.DB) domain.AccountRepository {
 }
 
 func (r *accountRepository) Create(ctx context.Context, acc *domain.Account) error {
-	query := `INSERT INTO accounts (id, name, email, password_hash) VALUES (?, ?, ?, ?)`
-	_, err := r.db.ExecContext(ctx, query, acc.ID, acc.Name, acc.Email, acc.PasswordHash)
+	query := `INSERT INTO accounts (id, name, email, password_hash, created_at) VALUES (?, ?, ?, ?, ?)`
+	_, err := r.db.ExecContext(ctx, query, acc.ID, acc.Name, acc.Email, acc.PasswordHash, acc.CreatedAt)
 	return err
 }
 

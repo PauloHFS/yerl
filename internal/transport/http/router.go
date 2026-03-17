@@ -16,7 +16,7 @@ func serveSPA(mux *http.ServeMux) {
 	if err != nil {
 		panic(err) // Se der erro aqui, a build ou o embed falhou
 	}
-	
+
 	fileServer := http.FileServer(http.FS(distFS))
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -51,7 +51,10 @@ func NewRouter(
 	mux.HandleFunc("POST /api/accounts/login", accountHandler.Login)
 
 	// Agrupamento de rotas do domínio Message
-	mux.HandleFunc("POST /api/messages", messageHandler.Send)
+	mux.Handle(
+		"POST /api/messages",
+		AuthMiddleware(http.HandlerFunc(messageHandler.Send)),
+	)
 
 	// Scalar API Reference
 	mux.HandleFunc("GET /api/docs", func(w http.ResponseWriter, r *http.Request) {
@@ -70,12 +73,34 @@ func NewRouter(
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write([]byte(html))
 	})
-	
+
 	// Serve OpenAPI Spec
 	mux.Handle("GET /api/swagger.json", http.StripPrefix("/api/", http.FileServer(http.Dir("./docs"))))
 
 	// Servir o Frontend no fallback das rotas
 	serveSPA(mux)
 
-	return LoggingMiddleware(mux)
+	return CORS(LoggingMiddleware(mux))
+}
+
+func CORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		origin := r.Header.Get("Origin")
+
+		if origin == "http://localhost:5173" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		}
+
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }

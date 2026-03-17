@@ -27,6 +27,7 @@ export async function apiClient<T>(endpoint: string, options?: RequestInit): Pro
 
   const config: RequestInit = {
     ...options,
+    credentials: "include",
     headers: {
       ...defaultHeaders,
       ...options?.headers,
@@ -37,15 +38,18 @@ export async function apiClient<T>(endpoint: string, options?: RequestInit): Pro
     const response = await fetch(url, config);
 
     if (!response.ok) {
+      const errorText = await response.text(); 
       let errorData;
+      
       try {
-        errorData = await response.json();
+        errorData = JSON.parse(errorText);
       } catch {
-        errorData = await response.text();
+        errorData = { message: errorText }; 
       }
       
       const errorMessage = (errorData && (errorData.message || errorData.error)) 
-        || `API Request Failed with status ${response.status}`;
+        || errorText
+        || `Erro na API com status ${response.status}`;
         
       throw new APIError(errorMessage, response.status, errorData);
     }
