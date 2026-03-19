@@ -4,7 +4,6 @@ export const Route = createFileRoute('/app')({
   component: AppPage,
 })
 
-/* eslint-disable react-refresh/only-export-components */
 function AppPage() {
   return (
     <div className="flex h-screen">

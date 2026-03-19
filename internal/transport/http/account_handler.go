@@ -1,6 +1,7 @@
 package http
 
 import (
+	"os"
 	"time"
 
 	"encoding/json"
@@ -58,6 +59,8 @@ func (h *AccountHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	var req LoginRequest
 
+	isProd := os.Getenv("APP_ENV") == "production"
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -73,7 +76,7 @@ func (h *AccountHandler) Login(w http.ResponseWriter, r *http.Request) {
 		Name:     "token",
 		Value:    token,
 		HttpOnly: true,
-		Secure:   false, // true em produção
+		Secure:   isProd, // true em produção
 		Path:     "/",
 		Expires:  time.Now().Add(24 * time.Hour),
 		SameSite: http.SameSiteStrictMode,

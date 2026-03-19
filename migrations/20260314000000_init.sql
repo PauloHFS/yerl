@@ -1,5 +1,4 @@
 -- +goose Up
--- Trocado de users para accounts, para padronizar o código, caso no futuro vá ser mudado, será necessário alterar alguns arquivos no backend também
 CREATE TABLE IF NOT EXISTS accounts (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,

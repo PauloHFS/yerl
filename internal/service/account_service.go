@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"os"
 	"time"
 
 	"github.com/PauloHFS/yerl/internal/domain"
@@ -41,7 +42,14 @@ func (s *accountService) Register(ctx context.Context, name, email, password str
 	return s.repo.Create(ctx, acc)
 }
 
-var jwtSecret = []byte("super_secret_key")
+func getJWTSecret() []byte {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		// Fallback para desenvolvimento local caso a ENV não esteja setada
+		return []byte("super_secret_key")
+	}
+	return []byte(secret)
+}
 
 func generateToken(userID string) (string, error) {
 
@@ -52,13 +60,13 @@ func generateToken(userID string) (string, error) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
-	return token.SignedString(jwtSecret)
+	return token.SignedString(getJWTSecret())
 }
 
 func ValidateToken(tokenString string) (string, error) {
 
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		return jwtSecret, nil
+		return getJWTSecret(), nil
 	})
 
 	if err != nil {
