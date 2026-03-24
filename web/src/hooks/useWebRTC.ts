@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 export interface SignalingMessage {
-  type: 'join' | 'offer' | 'answer' | 'candidate' | 'participants';
+  type: 'join' | 'offer' | 'answer' | 'candidate' | 'participants' | 'joined' | 'error';
   roomId?: string;
-  payload?: RTCSessionDescriptionInit | RTCIceCandidateInit | Participant[] | JoinPayload;
+  payload?: RTCSessionDescriptionInit | RTCIceCandidateInit | Participant[] | JoinPayload | { peerID: string };
 }
 
 export interface JoinPayload {
@@ -62,6 +62,7 @@ export function useWebRTC(roomId: string, username?: string) {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [stats, setStats] = useState<WebRTCStats | null>(null);
+  const [myPeerID, setMyPeerID] = useState('');
   
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -248,6 +249,9 @@ export function useWebRTC(roomId: string, username?: string) {
             await pc.addIceCandidate(new RTCIceCandidate(msg.payload as RTCIceCandidateInit));
           } else if (msg.type === 'participants') {
             setParticipants(msg.payload as Participant[]);
+          } else if (msg.type === 'joined') {
+            const payload = msg.payload as { peerID: string };
+            setMyPeerID(payload.peerID);
           }
         } catch (err) {
           console.error(`Error handling ${msg.type}`, err);
@@ -291,5 +295,5 @@ export function useWebRTC(roomId: string, username?: string) {
     };
   }, [disconnect]);
 
-  return { connect: connectOnce, disconnect, connected, remoteStreams, isMuted, toggleMute, stats, participants };
+  return { connect: connectOnce, disconnect, connected, remoteStreams, isMuted, toggleMute, stats, participants, myPeerID };
 }

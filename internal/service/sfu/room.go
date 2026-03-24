@@ -101,14 +101,20 @@ func (r *Room) broadcastParticipants() {
 		})
 	}
 
-	payload, _ := json.Marshal(participants)
+	payload, err := json.Marshal(participants)
+	if err != nil {
+		slog.Error("broadcast: marshal error", "err", err)
+		return
+	}
 	msg := domain.SignalingMessage{
 		Type:    "participants",
 		Payload: payload,
 	}
 
 	for _, p := range r.Peers {
-		_ = p.SendSignalFunc(msg)
+		if err := p.SendSignalFunc(msg); err != nil {
+			slog.Error("broadcast: send signal error", "peer_id", p.ID, "err", err)
+		}
 	}
 }
 

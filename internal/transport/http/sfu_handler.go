@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"sync"
 
 	"github.com/PauloHFS/yerl/internal/domain"
@@ -73,16 +74,42 @@ func (h *SFUHandler) HandleWS(w http.ResponseWriter, r *http.Request) {
 				joinData.RoomID = msg.RoomID
 			}
 
+			// Validar roomID
+			if joinData.RoomID == "" || len(joinData.RoomID) > 64 {
+				errPayload, _ := json.Marshal(map[string]string{"code": "invalid-room", "message": "roomID inválido"})
+				_ = sendSignal(domain.SignalingMessage{Type: "error", Payload: errPayload})
+				continue
+			}
+			roomIDRegex := regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+			if !roomIDRegex.MatchString(joinData.RoomID) {
+				errPayload, _ := json.Marshal(map[string]string{"code": "invalid-room", "message": "roomID contém caracteres inválidos"})
+				_ = sendSignal(domain.SignalingMessage{Type: "error", Payload: errPayload})
+				continue
+			}
+			// Validar name
+			if joinData.Name == "" || len(joinData.Name) > 32 {
+				errPayload, _ := json.Marshal(map[string]string{"code": "invalid-name", "message": "name inválido"})
+				_ = sendSignal(domain.SignalingMessage{Type: "error", Payload: errPayload})
+				continue
+			}
+
 			room := h.roomManager.GetOrCreateRoom(joinData.RoomID)
 			p, err := sfu.NewPeer(r.Context(), peerID, joinData.Name, room, sendSignal)
 			if err != nil {
 				slog.Error("Failed to create peer", "err", err)
 				break
 			}
-			
+
 			currentPeer = p
 			room.AddPeer(p)
 			slog.Info("Peer joined room", "peer_id", peerID, "room_id", joinData.RoomID, "name", joinData.Name)
+
+			joinedPayload, err := json.Marshal(domain.JoinedPayload{PeerID: peerID})
+			if err != nil {
+				slog.Error("failed to marshal joined payload", "peer_id", peerID, "err", err)
+			} else if err := sendSignal(domain.SignalingMessage{Type: "joined", Payload: joinedPayload}); err != nil {
+				slog.Error("failed to send joined message", "peer_id", peerID, "err", err)
+			}
 
 		case "offer":
 			if currentPeer == nil {

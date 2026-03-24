@@ -31,15 +31,16 @@ function CanalPage() {
   const [hasJoined, setHasJoined] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
 
-  const { 
-    connect, 
-    disconnect, 
-    connected, 
-    remoteStreams, 
-    isMuted, 
-    toggleMute, 
-    stats, 
-    participants 
+  const {
+    connect,
+    disconnect,
+    connected,
+    remoteStreams,
+    isMuted,
+    toggleMute,
+    stats,
+    participants,
+    myPeerID,
   } = useWebRTC(name ?? '', username);
 
   // Efeito centralizado para lidar com a conexão baseada no estado hasJoined
@@ -106,7 +107,7 @@ function CanalPage() {
               <div className="flex flex-wrap gap-2">
                 {participants.map((p) => (
                   <div key={p.id} className="badge badge-outline badge-md">
-                    {p.name} {p.id === localStorage.getItem('yerl_peer_id') ? '(Você)' : (p.name === username ? '(Você*)' : '')}
+                    {p.name} {p.id === myPeerID ? '(Você)' : ''}
                   </div>
                 ))}
               </div>

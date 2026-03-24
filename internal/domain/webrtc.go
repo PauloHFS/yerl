@@ -22,3 +22,8 @@ type Participant struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
+
+// JoinedPayload is sent to a peer after they successfully join a room.
+type JoinedPayload struct {
+	PeerID string `json:"peerID"`
+}
