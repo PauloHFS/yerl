@@ -1,6 +1,7 @@
 package sfu
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -17,14 +18,17 @@ type Peer struct {
 	Room           *Room
 	PC             *webrtc.PeerConnection
 	SendSignalFunc func(msg domain.SignalingMessage) error
-	
+
+	ctx               context.Context
+	cancel            context.CancelFunc
 	mu                sync.Mutex
 	isClosed          bool
 	pendingCandidates []webrtc.ICECandidateInit
 }
 
-func NewPeer(id, name string, room *Room, sendSignal func(domain.SignalingMessage) error) (*Peer, error) {
-	// Setup Pion WebRTC
+func NewPeer(ctx context.Context, id, name string, room *Room, sendSignal func(domain.SignalingMessage) error) (*Peer, error) {
+	peerCtx, cancel := context.WithCancel(ctx)
+
 	config := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
@@ -35,15 +39,18 @@ func NewPeer(id, name string, room *Room, sendSignal func(domain.SignalingMessag
 
 	pc, err := webrtc.NewPeerConnection(config)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
 	p := &Peer{
-		ID:             id,
-		Name:           name,
-		Room:           room,
-		PC:             pc,
-		SendSignalFunc: sendSignal,
+		ID:                id,
+		Name:              name,
+		Room:              room,
+		PC:                pc,
+		SendSignalFunc:    sendSignal,
+		ctx:               peerCtx,
+		cancel:            cancel,
 		pendingCandidates: make([]webrtc.ICECandidateInit, 0),
 	}
 
@@ -93,27 +100,33 @@ func (p *Peer) setupHandlers() {
 		// Add to room (which will broadcast to others)
 		p.Room.AddTrack(localTrack, p.ID)
 
-		// Read RTP packets forever and write them to the local track
-		rtpBuf := make([]byte, 1400)
-		for {
-			i, _, readErr := remoteTrack.Read(rtpBuf)
-			if readErr != nil {
-				if errors.Is(readErr, io.EOF) {
-					slog.Info("Remote track ended", "track_id", remoteTrack.ID())
-				} else {
-					slog.Error("Error reading remote track", "err", readErr)
+		// Read RTP packets e encaminha para o local track, respeitando o context
+		go func() {
+			rtpBuf := make([]byte, 1400)
+			for {
+				select {
+				case <-p.ctx.Done():
+					p.Room.RemoveTrack(remoteTrack.ID(), p.ID)
+					return
+				default:
 				}
-				p.Room.RemoveTrack(remoteTrack.ID(), p.ID)
-				return
-			}
 
-			if _, err = localTrack.Write(rtpBuf[:i]); err != nil {
-				// ErrClosedPipe means we don't have any subscribers, this is ok
-				if !errors.Is(err, io.ErrClosedPipe) {
-					slog.Error("Error writing to local track", "err", err)
+				i, _, readErr := remoteTrack.Read(rtpBuf)
+				if readErr != nil {
+					if errors.Is(readErr, io.EOF) {
+						slog.Info("Remote track ended", "track_id", remoteTrack.ID())
+					}
+					p.Room.RemoveTrack(remoteTrack.ID(), p.ID)
+					return
+				}
+
+				if _, err = localTrack.Write(rtpBuf[:i]); err != nil {
+					if !errors.Is(err, io.ErrClosedPipe) {
+						slog.Error("Error writing to local track", "err", err)
+					}
 				}
 			}
-		}
+		}()
 	})
 
 	p.PC.OnNegotiationNeeded(func() {
@@ -232,6 +245,7 @@ func (p *Peer) Close() {
 		return
 	}
 	p.isClosed = true
+	p.cancel() // Cancela context ANTES de fechar PC
 
 	if p.Room != nil {
 		p.Room.RemovePeer(p.ID)

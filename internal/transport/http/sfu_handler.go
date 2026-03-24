@@ -74,7 +74,7 @@ func (h *SFUHandler) HandleWS(w http.ResponseWriter, r *http.Request) {
 			}
 
 			room := h.roomManager.GetOrCreateRoom(joinData.RoomID)
-			p, err := sfu.NewPeer(peerID, joinData.Name, room, sendSignal)
+			p, err := sfu.NewPeer(r.Context(), peerID, joinData.Name, room, sendSignal)
 			if err != nil {
 				slog.Error("Failed to create peer", "err", err)
 				break
