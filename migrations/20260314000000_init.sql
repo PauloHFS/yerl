@@ -10,6 +10,9 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS channels (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'text',        -- 'text' ou 'voice'
+    user_limit INTEGER NOT NULL DEFAULT 0,    -- 0 = sem limite
+    bitrate INTEGER NOT NULL DEFAULT 64000,   -- 64kbps padrão para voz
     created_at DATETIME NOT NULL
 );
 
