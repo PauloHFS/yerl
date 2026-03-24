@@ -9,7 +9,6 @@ import (
 
 	"github.com/PauloHFS/yerl/internal/domain"
 	"github.com/PauloHFS/yerl/internal/service/sfu"
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v4"
 )
@@ -30,6 +29,8 @@ func NewSFUHandler(roomManager *sfu.RoomManager) *SFUHandler {
 	}
 }
 
+var roomIDRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
 func (h *SFUHandler) HandleWS(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -38,8 +39,16 @@ func (h *SFUHandler) HandleWS(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	peerID := uuid.New().String()
-	slog.Info("New WebSocket connection", "peer_id", peerID)
+	// Auth simplificado: userId via query param (login stub — sem auth real ainda)
+	userID := r.URL.Query().Get("userId")
+	userName := r.URL.Query().Get("name")
+
+	peerID := userID
+	if peerID == "" {
+		// Fallback para compatibilidade se userId não fornecido
+		peerID = r.URL.Query().Get("peerId")
+	}
+	slog.Info("New WebSocket connection", "peer_id", peerID, "name", userName)
 
 	var currentPeer *sfu.Peer
 	var writeMu sync.Mutex // Protege a escrita simultânea no WebSocket
@@ -48,6 +57,11 @@ func (h *SFUHandler) HandleWS(w http.ResponseWriter, r *http.Request) {
 		writeMu.Lock()
 		defer writeMu.Unlock()
 		return conn.WriteJSON(msg)
+	}
+
+	sendError := func(code, message string) {
+		payload, _ := json.Marshal(domain.ErrorPayload{Code: code, Message: message})
+		_ = sendSignal(domain.SignalingMessage{Type: "error", Payload: payload})
 	}
 
 	for {
@@ -66,30 +80,29 @@ func (h *SFUHandler) HandleWS(w http.ResponseWriter, r *http.Request) {
 
 			var joinData domain.JoinPayload
 			if err := json.Unmarshal(msg.Payload, &joinData); err != nil {
-				// Fallback para suportar o formato anterior se necessário, mas idealmente usar o novo
 				joinData.RoomID = msg.RoomID
 			}
-			
 			if joinData.RoomID == "" {
 				joinData.RoomID = msg.RoomID
 			}
 
+			// Name do query param tem precedência; fallback para payload
+			if userName != "" {
+				joinData.Name = userName
+			}
+
 			// Validar roomID
 			if joinData.RoomID == "" || len(joinData.RoomID) > 64 {
-				errPayload, _ := json.Marshal(map[string]string{"code": "invalid-room", "message": "roomID inválido"})
-				_ = sendSignal(domain.SignalingMessage{Type: "error", Payload: errPayload})
+				sendError("invalid-room", "roomID inválido")
 				continue
 			}
-			roomIDRegex := regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 			if !roomIDRegex.MatchString(joinData.RoomID) {
-				errPayload, _ := json.Marshal(map[string]string{"code": "invalid-room", "message": "roomID contém caracteres inválidos"})
-				_ = sendSignal(domain.SignalingMessage{Type: "error", Payload: errPayload})
+				sendError("invalid-room", "roomID contém caracteres inválidos")
 				continue
 			}
 			// Validar name
 			if joinData.Name == "" || len(joinData.Name) > 32 {
-				errPayload, _ := json.Marshal(map[string]string{"code": "invalid-name", "message": "name inválido"})
-				_ = sendSignal(domain.SignalingMessage{Type: "error", Payload: errPayload})
+				sendError("invalid-name", "name inválido")
 				continue
 			}
 
@@ -100,8 +113,14 @@ func (h *SFUHandler) HandleWS(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 
+			if err := room.AddPeer(p); err != nil {
+				slog.Warn("Room cheia", "peer_id", peerID, "err", err)
+				sendError("room-full", err.Error())
+				p.Close()
+				continue
+			}
+
 			currentPeer = p
-			room.AddPeer(p)
 			slog.Info("Peer joined room", "peer_id", peerID, "room_id", joinData.RoomID, "name", joinData.Name)
 
 			joinedPayload, err := json.Marshal(domain.JoinedPayload{PeerID: peerID})
@@ -149,6 +168,19 @@ func (h *SFUHandler) HandleWS(w http.ResponseWriter, r *http.Request) {
 			if err := currentPeer.HandleCandidate(candidate); err != nil {
 				slog.Error("Failed to handle candidate", "err", err)
 			}
+
+		case "mute-status":
+			if currentPeer == nil {
+				continue
+			}
+			var mutePayload domain.MuteStatusPayload
+			if err := json.Unmarshal(msg.Payload, &mutePayload); err != nil {
+				slog.Error("Failed to unmarshal mute-status", "err", err)
+				continue
+			}
+			// Broadcast para todos os outros peers
+			currentPeer.Room.BroadcastExcept(peerID, msg)
+
 		default:
 			slog.Warn("Unknown signaling message type", "type", msg.Type)
 		}
