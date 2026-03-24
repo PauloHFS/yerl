@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"log/slog"
 	"sync"
 
@@ -83,50 +82,25 @@ func (p *Peer) setupHandlers() {
 		}
 	})
 
-	p.PC.OnTrack(func(remoteTrack *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
-		slog.Info("Track received", "kind", remoteTrack.Kind().String(), "id", remoteTrack.ID(), "peer_id", p.ID)
-		
-		// Create a local track to broadcast
+	p.PC.OnTrack(func(remoteTrack *webrtc.TrackRemote, _ *webrtc.RTPReceiver) {
+		rid := remoteTrack.RID()
+		kind := ClassifyTrack(remoteTrack.StreamID(), remoteTrack.Kind())
+		slog.Info("Track received", "kind", kind, "rid", rid, "stream_id", remoteTrack.StreamID(), "peer_id", p.ID)
+
 		localTrack, err := webrtc.NewTrackLocalStaticRTP(
 			remoteTrack.Codec().RTPCodecCapability,
 			remoteTrack.ID(),
-			p.ID, // Use peer ID as stream ID to group tracks by user
+			remoteTrack.StreamID(),
 		)
 		if err != nil {
 			slog.Error("Failed to create local track", "err", err)
 			return
 		}
 
-		// Add to room (which will broadcast to others)
-		p.Room.AddTrack(localTrack, p.ID)
+		p.Room.AddTrack(localTrack, p.ID, kind, rid)
 
-		// Read RTP packets e encaminha para o local track, respeitando o context
-		go func() {
-			rtpBuf := make([]byte, 1400)
-			for {
-				select {
-				case <-p.ctx.Done():
-					p.Room.RemoveTrack(remoteTrack.ID(), p.ID)
-					return
-				default:
-				}
-
-				i, _, readErr := remoteTrack.Read(rtpBuf)
-				if readErr != nil {
-					if errors.Is(readErr, io.EOF) {
-						slog.Info("Remote track ended", "track_id", remoteTrack.ID())
-					}
-					p.Room.RemoveTrack(remoteTrack.ID(), p.ID)
-					return
-				}
-
-				if _, err = localTrack.Write(rtpBuf[:i]); err != nil {
-					if !errors.Is(err, io.ErrClosedPipe) {
-						slog.Error("Error writing to local track", "err", err)
-					}
-				}
-			}
-		}()
+		fwd := newTrackForwarder(p.ctx, remoteTrack, localTrack)
+		fwd.Start()
 	})
 
 	p.PC.OnNegotiationNeeded(func() {
