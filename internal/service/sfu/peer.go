@@ -6,8 +6,10 @@ import (
 	"errors"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/PauloHFS/yerl/internal/domain"
+	"github.com/pion/rtcp"
 	"github.com/pion/webrtc/v4"
 )
 
@@ -25,8 +27,40 @@ type Peer struct {
 	pendingCandidates []webrtc.ICECandidateInit
 }
 
+func newMediaEngine() (*webrtc.MediaEngine, error) {
+	m := &webrtc.MediaEngine{}
+
+	if err := m.RegisterCodec(webrtc.RTPCodecParameters{
+		RTPCodecCapability: webrtc.RTPCodecCapability{
+			MimeType: webrtc.MimeTypeVP8, ClockRate: 90000,
+		},
+		PayloadType: 96,
+	}, webrtc.RTPCodecTypeVideo); err != nil {
+		return nil, err
+	}
+
+	if err := m.RegisterCodec(webrtc.RTPCodecParameters{
+		RTPCodecCapability: webrtc.RTPCodecCapability{
+			MimeType: webrtc.MimeTypeOpus, ClockRate: 48000, Channels: 2,
+		},
+		PayloadType: 111,
+	}, webrtc.RTPCodecTypeAudio); err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
 func NewPeer(ctx context.Context, id, name string, room *Room, sendSignal func(domain.SignalingMessage) error) (*Peer, error) {
 	peerCtx, cancel := context.WithCancel(ctx)
+
+	m, err := newMediaEngine()
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+
+	api := webrtc.NewAPI(webrtc.WithMediaEngine(m))
 
 	config := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
@@ -36,7 +70,7 @@ func NewPeer(ctx context.Context, id, name string, room *Room, sendSignal func(d
 		},
 	}
 
-	pc, err := webrtc.NewPeerConnection(config)
+	pc, err := api.NewPeerConnection(config)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -82,7 +116,7 @@ func (p *Peer) setupHandlers() {
 		}
 	})
 
-	p.PC.OnTrack(func(remoteTrack *webrtc.TrackRemote, _ *webrtc.RTPReceiver) {
+	p.PC.OnTrack(func(remoteTrack *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
 		rid := remoteTrack.RID()
 		kind := ClassifyTrack(remoteTrack.StreamID(), remoteTrack.Kind())
 		slog.Info("Track received", "kind", kind, "rid", rid, "stream_id", remoteTrack.StreamID(), "peer_id", p.ID)
@@ -101,6 +135,35 @@ func (p *Peer) setupHandlers() {
 
 		fwd := newTrackForwarder(p.ctx, remoteTrack, localTrack)
 		fwd.Start()
+
+		// Loop de RTCP: necessário para drenar o buffer de controle do receiver
+		go func() {
+			for {
+				if _, _, err := receiver.ReadRTCP(); err != nil {
+					return
+				}
+			}
+		}()
+
+		// PLI periódico para vídeo: solicita keyframes a cada 3s para novos participantes
+		if remoteTrack.Kind() == webrtc.RTPCodecTypeVideo {
+			go func() {
+				ticker := time.NewTicker(3 * time.Second)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-p.ctx.Done():
+						return
+					case <-ticker.C:
+						if err := p.PC.WriteRTCP([]rtcp.Packet{
+							&rtcp.PictureLossIndication{MediaSSRC: uint32(remoteTrack.SSRC())},
+						}); err != nil && !errors.Is(err, webrtc.ErrConnectionClosed) {
+							slog.Error("PLI write error", "err", err)
+						}
+					}
+				}
+			}()
+		}
 	})
 
 	p.PC.OnNegotiationNeeded(func() {
