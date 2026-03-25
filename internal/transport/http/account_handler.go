@@ -1,11 +1,10 @@
 package http
 
 import (
-	"os"
-	"time"
-
 	"encoding/json"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/PauloHFS/yerl/internal/domain"
 )
@@ -55,12 +54,7 @@ func (h *AccountHandler) Register(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AccountHandler) Login(w http.ResponseWriter, r *http.Request) {
-	// Lógica de autenticação e geração de token/cookies
-
 	var req LoginRequest
-
-	isProd := os.Getenv("APP_ENV") == "production"
-
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -72,17 +66,19 @@ func (h *AccountHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	isProd := os.Getenv("APP_ENV") == "production"
 	http.SetCookie(w, &http.Cookie{
 		Name:     "token",
 		Value:    token,
 		HttpOnly: true,
-		Secure:   isProd, // true em produção
+		Secure:   isProd,
 		Path:     "/",
 		Expires:  time.Now().Add(24 * time.Hour),
 		SameSite: http.SameSiteStrictMode,
 	})
 
-	json.NewEncoder(w).Encode(map[string]string{
-		"message": "login feito com sucesso",
-	})
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]string{"message": "login feito com sucesso"}); err != nil {
+		http.Error(w, "erro ao serializar resposta", http.StatusInternalServerError)
+	}
 }

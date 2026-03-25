@@ -52,7 +52,6 @@ func getJWTSecret() []byte {
 }
 
 func generateToken(userID string) (string, error) {
-
 	claims := jwt.MapClaims{
 		"user_id": userID,
 		"exp":     time.Now().Add(time.Hour * 24).Unix(),
@@ -64,26 +63,27 @@ func generateToken(userID string) (string, error) {
 }
 
 func ValidateToken(tokenString string) (string, error) {
-
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		return getJWTSecret(), nil
-	})
-
+	token, err := jwt.Parse(tokenString,
+		func(token *jwt.Token) (interface{}, error) {
+			return getJWTSecret(), nil
+		},
+		jwt.WithValidMethods([]string{"HS256"}),
+	)
 	if err != nil {
 		return "", err
 	}
 
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-
-		userID, ok := claims["user_id"].(string)
-		if !ok {
-			return "", errors.New("invalid token")
-		}
-
-		return userID, nil
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || !token.Valid {
+		return "", errors.New("token inválido")
 	}
 
-	return "", errors.New("invalid token")
+	userID, ok := claims["user_id"].(string)
+	if !ok {
+		return "", errors.New("token inválido")
+	}
+
+	return userID, nil
 }
 
 func (s *accountService) Login(ctx context.Context, email, password string) (string, error) {
@@ -93,24 +93,12 @@ func (s *accountService) Login(ctx context.Context, email, password string) (str
 	}
 
 	if acc == nil {
-		return "", errors.New("Credenciais Inválidas")
+		return "", errors.New("credenciais inválidas")
 	}
 
-	err = bcrypt.CompareHashAndPassword(
-		[]byte(acc.PasswordHash),
-		[]byte(password),
-	)
-
-	if err != nil {
-		return "", errors.New("Credenciais Inválidas")
+	if err := bcrypt.CompareHashAndPassword([]byte(acc.PasswordHash), []byte(password)); err != nil {
+		return "", errors.New("credenciais inválidas")
 	}
 
-	//Aqui gera o token
-	token, err := generateToken(acc.ID)
-	if err != nil {
-		return "", err
-	}
-
-	return token, nil
-
+	return generateToken(acc.ID)
 }

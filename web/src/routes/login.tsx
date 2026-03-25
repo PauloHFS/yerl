@@ -12,13 +12,11 @@ export const Route = createFileRoute('/login')({
 
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault()
-      mutate({ email, password },
-        {
-    onSuccess: () => {
-      void navigate({ to: '/app' })
-    }
-}
-      )
+      mutate({ email, password }, {
+        onSuccess: () => {
+          void navigate({ to: '/app' })
+        },
+      })
     }
 
     return (
