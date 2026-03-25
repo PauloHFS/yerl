@@ -71,6 +71,7 @@ export function useWebRTC(roomId: string, username?: string) {
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [stats, setStats] = useState<WebRTCStats | null>(null);
   const [myPeerID, setMyPeerID] = useState('');
+  const [isReconnecting, setIsReconnecting] = useState(false);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -79,6 +80,9 @@ export function useWebRTC(roomId: string, username?: string) {
   const prevStatsRef = useRef<PrevStats | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const intentionalDisconnectRef = useRef(false);
 
   const startStats = useCallback((pc: RTCPeerConnection) => {
     statsIntervalRef.current = setInterval(async () => {
@@ -156,7 +160,14 @@ export function useWebRTC(roomId: string, username?: string) {
     }, 1000);
   }, []);
 
-  const disconnect = useCallback(() => {
+  const disconnect = useCallback((intentional = true) => {
+    intentionalDisconnectRef.current = intentional;
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+    reconnectAttemptsRef.current = 0;
+    setIsReconnecting(false);
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(track => track.stop());
       localStreamRef.current = null;
@@ -279,9 +290,34 @@ export function useWebRTC(roomId: string, username?: string) {
         }
       };
 
+      pc.oniceconnectionstatechange = () => {
+        if (pc.iceConnectionState === 'failed') {
+          pc.restartIce();
+        }
+      };
+
       ws.onclose = () => {
         setConnected(false);
         isConnectingRef.current = false;
+
+        if (intentionalDisconnectRef.current) return;
+
+        const maxAttempts = 5;
+        if (reconnectAttemptsRef.current >= maxAttempts) {
+          setIsReconnecting(false);
+          return;
+        }
+
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30_000);
+        reconnectAttemptsRef.current += 1;
+        setIsReconnecting(true);
+
+        reconnectTimerRef.current = setTimeout(() => {
+          isConnectingRef.current = false;
+          wsRef.current = null;
+          pcRef.current = null;
+          void connect();
+        }, delay);
       };
 
     } catch (err) {
@@ -421,6 +457,7 @@ export function useWebRTC(roomId: string, username?: string) {
     connect: connectOnce,
     disconnect,
     connected,
+    isReconnecting,
     remoteStreams,
     localStream,
     isMuted,

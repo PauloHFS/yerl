@@ -25,6 +25,7 @@ function CanalPage() {
     connect,
     disconnect,
     connected,
+    isReconnecting,
     remoteStreams,
     localStream,
     isMuted,
@@ -81,8 +82,10 @@ function CanalPage() {
           <div className="px-3 py-2 border-b border-base-300">
             <h2 className="font-bold text-sm">🔊 {name}</h2>
             <div className="flex items-center gap-2 mt-1">
-              <div className={`w-2 h-2 rounded-full ${connected ? 'bg-success' : 'bg-warning'}`} />
-              <span className="text-xs opacity-60">{connected ? 'Conectado' : 'Conectando...'}</span>
+              <div className={`w-2 h-2 rounded-full ${connected ? 'bg-success' : isReconnecting ? 'bg-warning animate-pulse' : 'bg-error'}`} />
+              <span className="text-xs opacity-60">
+                {connected ? 'Conectado' : isReconnecting ? 'Reconectando...' : 'Desconectado'}
+              </span>
             </div>
           </div>
 
