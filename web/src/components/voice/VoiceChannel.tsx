@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { Participant } from '@/hooks/useWebRTC';
+import { useSpeakingDetection } from '@/hooks/useSpeakingDetection';
 import { VoiceParticipant } from './VoiceParticipant';
 import { VideoTile } from './VideoTile';
 import { ScreenShareView } from './ScreenShareView';
@@ -35,6 +36,16 @@ function isScreenShareStream(stream: MediaStream): boolean {
     t.label.toLowerCase().includes('window') ||
     t.label.toLowerCase().includes('monitor')
   );
+}
+
+function LocalSpeakingWrapper({ participant, isLocal, isMuted, localStream }: {
+  participant: Participant;
+  isLocal: boolean;
+  isMuted: boolean;
+  localStream: MediaStream | null;
+}) {
+  const isSpeaking = useSpeakingDetection(isMuted ? null : localStream);
+  return <VoiceParticipant participant={participant} isLocal={isLocal} isMuted={isMuted} isSpeaking={isSpeaking} />;
 }
 
 export function VoiceChannel({
@@ -73,14 +84,19 @@ export function VoiceChannel({
       {/* Layout Voice-Only: avatares circulares */}
       {layout === 'voice' && (
         <div className="flex-1 flex flex-wrap items-center justify-center gap-4 p-4">
-          {participants.map(p => (
-            <VoiceParticipant
-              key={p.id}
-              participant={p}
-              isLocal={p.id === myPeerID}
-              isMuted={p.id === myPeerID ? isMuted : false}
-            />
-          ))}
+          {participants.map(p =>
+            p.id === myPeerID ? (
+              <LocalSpeakingWrapper
+                key={p.id}
+                participant={p}
+                isLocal
+                isMuted={isMuted}
+                localStream={localStream}
+              />
+            ) : (
+              <VoiceParticipant key={p.id} participant={p} isLocal={false} />
+            )
+          )}
         </div>
       )}
 
