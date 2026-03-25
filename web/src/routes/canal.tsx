@@ -100,6 +100,7 @@ function CanalPage() {
               isCameraOn={isCameraOn}
               isScreenSharing={isScreenSharing}
               isMuted={isMuted}
+              stats={stats}
             />
           </div>
 

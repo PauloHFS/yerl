@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { Participant } from '@/hooks/useWebRTC';
+import type { Participant, WebRTCStats } from '@/hooks/useWebRTC';
 import { useSpeakingDetection } from '@/hooks/useSpeakingDetection';
 import { VoiceParticipant } from './VoiceParticipant';
 import { VideoTile } from './VideoTile';
@@ -14,6 +14,7 @@ interface VoiceChannelProps {
   isCameraOn: boolean;
   isScreenSharing: boolean;
   isMuted: boolean;
+  stats?: WebRTCStats | null;
 }
 
 function RemoteAudio({ stream }: { stream: MediaStream }) {
@@ -38,14 +39,15 @@ function isScreenShareStream(stream: MediaStream): boolean {
   );
 }
 
-function LocalSpeakingWrapper({ participant, isLocal, isMuted, localStream }: {
+function LocalSpeakingWrapper({ participant, isLocal, isMuted, localStream, stats }: {
   participant: Participant;
   isLocal: boolean;
   isMuted: boolean;
   localStream: MediaStream | null;
+  stats?: WebRTCStats | null;
 }) {
   const isSpeaking = useSpeakingDetection(isMuted ? null : localStream);
-  return <VoiceParticipant participant={participant} isLocal={isLocal} isMuted={isMuted} isSpeaking={isSpeaking} />;
+  return <VoiceParticipant participant={participant} isLocal={isLocal} isMuted={isMuted} isSpeaking={isSpeaking} stats={stats} />;
 }
 
 export function VoiceChannel({
@@ -57,6 +59,7 @@ export function VoiceChannel({
   isCameraOn,
   isScreenSharing,
   isMuted,
+  stats,
 }: VoiceChannelProps) {
   const screenStreams = remoteStreams.filter(isScreenShareStream);
   const videoStreams = remoteStreams.filter(s => isVideoStream(s) && !isScreenShareStream(s));
@@ -92,6 +95,7 @@ export function VoiceChannel({
                 isLocal
                 isMuted={isMuted}
                 localStream={localStream}
+                stats={stats}
               />
             ) : (
               <VoiceParticipant key={p.id} participant={p} isLocal={false} />
