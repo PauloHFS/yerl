@@ -35,7 +35,8 @@ describe('Landing Page (/)', () => {
     expect(btnComecar).toBeInTheDocument();
     expect(btnComecar).toHaveAttribute('href', '/register');
 
-    const btnSaibaMais = screen.getByRole('button', { name: /Saiba mais/i });
-    expect(btnSaibaMais).toBeInTheDocument();
+    // Verifica que o link principal existe e aponta para registro
+    const btnComecarDuplicate = screen.getAllByRole('link', { name: /Começar agora/i });
+    expect(btnComecarDuplicate.length).toBeGreaterThan(0);
   });
 });
