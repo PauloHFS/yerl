@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 export interface SignalingMessage {
-  type: 'join' | 'offer' | 'answer' | 'candidate' | 'participants' | 'joined' | 'error';
+  type: 'join' | 'offer' | 'answer' | 'candidate' | 'participants' | 'joined' | 'error' | 'mute-status' | 'screen-share-started' | 'screen-share-ended';
   roomId?: string;
-  payload?: RTCSessionDescriptionInit | RTCIceCandidateInit | Participant[] | JoinPayload | { peerID: string };
+  payload?: RTCSessionDescriptionInit | RTCIceCandidateInit | Participant[] | JoinPayload | { peerID: string } | MuteStatusPayload;
 }
 
 export interface JoinPayload {
@@ -16,10 +16,16 @@ export interface Participant {
   name: string;
 }
 
+export interface MuteStatusPayload {
+  peerID: string;
+  trackType: 'audio' | 'video' | 'screenshare-video' | 'screenshare-audio';
+  muted: boolean;
+}
+
 export interface WebRTCStats {
   outbound: { bitrate: number; packetsSent: number };
   inbound: { bitrate: number; packetsLost: number; jitter: number };
-  latency: number; // RTT in ms
+  latency: number; // RTT em ms
 }
 
 interface PrevStats {
@@ -61,14 +67,18 @@ export function useWebRTC(roomId: string, username?: string) {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [isMuted, setIsMuted] = useState(false);
+  const [isCameraOn, setIsCameraOn] = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [stats, setStats] = useState<WebRTCStats | null>(null);
   const [myPeerID, setMyPeerID] = useState('');
-  
+
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const isConnectingRef = useRef(false);
   const statsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevStatsRef = useRef<PrevStats | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
 
   const startStats = useCallback((pc: RTCPeerConnection) => {
     statsIntervalRef.current = setInterval(async () => {
@@ -95,14 +105,14 @@ export function useWebRTC(roomId: string, username?: string) {
                   outboundBitrate = (deltaBytes * 8) / deltaTime / 1000; // kbps
                }
             }
-            prevStatsRef.current = { 
-              bytesSent: outbound.bytesSent, 
+            prevStatsRef.current = {
+              bytesSent: outbound.bytesSent,
               bytesReceived: prevStatsRef.current?.bytesReceived ?? 0,
-              timestamp: now 
+              timestamp: now
             };
           }
         }
-        
+
         if (s.type === 'inbound-rtp') {
           const inbound = s as RTCInboundRtpStreamStats;
           if (inbound.kind === 'audio') {
@@ -115,10 +125,10 @@ export function useWebRTC(roomId: string, username?: string) {
                  inboundBitrate = (deltaBytes * 8) / deltaTime / 1000; // kbps
               }
             }
-            prevStatsRef.current = { 
+            prevStatsRef.current = {
               bytesSent: prevStatsRef.current?.bytesSent ?? 0,
               bytesReceived: inbound.bytesReceived,
-              timestamp: now 
+              timestamp: now
             };
           }
         }
@@ -129,7 +139,7 @@ export function useWebRTC(roomId: string, username?: string) {
               rtt = remoteInbound.roundTripTime * 1000; // ms
            }
         }
-        
+
         if (stat.type === 'candidate-pair') {
            const candidatePair = s as RTCIceCandidatePairStats;
            if (candidatePair.state === 'succeeded' && typeof candidatePair.currentRoundTripTime === 'number') {
@@ -147,9 +157,13 @@ export function useWebRTC(roomId: string, username?: string) {
   }, []);
 
   const disconnect = useCallback(() => {
-    if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
-      setLocalStream(null);
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => track.stop());
+      localStreamRef.current = null;
+    }
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach(track => track.stop());
+      screenStreamRef.current = null;
     }
     if (pcRef.current) {
       pcRef.current.close();
@@ -168,15 +182,21 @@ export function useWebRTC(roomId: string, username?: string) {
     setRemoteStreams([]);
     setParticipants([]);
     setStats(null);
-  }, [localStream]);
+    setLocalStream(null);
+    setIsCameraOn(false);
+    setIsScreenSharing(false);
+  }, []);
 
   const connect = useCallback(async () => {
     try {
+      // Inicia apenas com áudio; vídeo é adicionado via toggleCamera
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       setLocalStream(stream);
+      localStreamRef.current = stream;
 
+      const userId = myPeerID || crypto.randomUUID();
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/api/ws`;
+      const wsUrl = `${protocol}//${window.location.host}/api/ws?userId=${encodeURIComponent(userId)}&name=${encodeURIComponent(username ?? '')}`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
@@ -189,6 +209,7 @@ export function useWebRTC(roomId: string, username?: string) {
       startStats(pc);
 
       pc.ontrack = (event) => {
+        if (!event.streams[0]) return;
         setRemoteStreams((prev) => {
           const newStreams = [...prev];
           if (!newStreams.some((s) => s.id === event.streams[0].id)) {
@@ -224,8 +245,8 @@ export function useWebRTC(roomId: string, username?: string) {
 
       ws.onopen = () => {
         setConnected(true);
-        ws.send(JSON.stringify({ 
-          type: 'join', 
+        ws.send(JSON.stringify({
+          type: 'join',
           roomId,
           payload: { roomId, name: username }
         }));
@@ -233,7 +254,7 @@ export function useWebRTC(roomId: string, username?: string) {
 
       ws.onmessage = async (event: MessageEvent) => {
         const msg = JSON.parse(event.data as string) as SignalingMessage;
-        
+
         try {
           if (msg.type === 'offer') {
             await pc.setRemoteDescription(new RTCSessionDescription(msg.payload as RTCSessionDescriptionInit));
@@ -267,7 +288,7 @@ export function useWebRTC(roomId: string, username?: string) {
       isConnectingRef.current = false;
       console.error('Failed to get media or connect', err);
     }
-  }, [roomId, username, startStats]);
+  }, [roomId, username, startStats, myPeerID]);
 
   const connectOnce = useCallback(async () => {
     if (isConnectingRef.current || wsRef.current) return;
@@ -276,24 +297,141 @@ export function useWebRTC(roomId: string, username?: string) {
   }, [connect]);
 
   const toggleMute = useCallback(() => {
-    if (localStream) {
-      const audioTracks = localStream.getAudioTracks();
+    const stream = localStreamRef.current;
+    if (stream) {
+      const audioTracks = stream.getAudioTracks();
       if (audioTracks.length > 0) {
         const newEnabledState = !audioTracks[0].enabled;
         audioTracks[0].enabled = newEnabledState;
         setIsMuted(!newEnabledState);
       }
     }
-  }, [localStream]);
+  }, []);
+
+  // Ativa câmera e adiciona track de vídeo com simulcast (3 layers: l→m→h)
+  const enableCamera = useCallback(async () => {
+    const pc = pcRef.current;
+    if (!pc) return;
+
+    try {
+      const videoStream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+      const videoTrack = videoStream.getVideoTracks()[0];
+      if (!videoTrack) return;
+
+      // Adicionar à stream local para exibição
+      const currentStream = localStreamRef.current ?? new MediaStream();
+      currentStream.addTrack(videoTrack);
+      setLocalStream(new MediaStream(currentStream.getTracks()));
+
+      const sender = pc.addTrack(videoTrack, currentStream);
+
+      // Configurar simulcast: ordem crescente (low → high) conforme spec WebRTC
+      const params = sender.getParameters();
+      params.encodings = [
+        { rid: 'l', maxBitrate: 100_000, scaleResolutionDownBy: 4 },
+        { rid: 'm', maxBitrate: 500_000, scaleResolutionDownBy: 2 },
+        { rid: 'h', maxBitrate: 2_500_000, scaleResolutionDownBy: 1 },
+      ];
+      await sender.setParameters(params);
+
+      setIsCameraOn(true);
+    } catch (err) {
+      console.error('Erro ao ativar câmera', err);
+    }
+  }, []);
+
+  const disableCamera = useCallback(() => {
+    const stream = localStreamRef.current;
+    if (!stream) return;
+
+    stream.getVideoTracks().forEach(track => {
+      track.stop();
+      stream.removeTrack(track);
+    });
+    setLocalStream(new MediaStream(stream.getAudioTracks()));
+    setIsCameraOn(false);
+  }, []);
+
+  const toggleCamera = useCallback(async () => {
+    if (isCameraOn) {
+      disableCamera();
+    } else {
+      await enableCamera();
+    }
+  }, [isCameraOn, enableCamera, disableCamera]);
+
+  // Screen share com áudio do sistema (best-effort — macOS não suporta)
+  const startScreenShare = useCallback(async () => {
+    const pc = pcRef.current;
+    if (!pc) return;
+
+    try {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: { cursor: 'always' } as MediaTrackConstraints,
+        audio: true,
+      });
+
+      if (screenStream.getAudioTracks().length === 0) {
+        console.info('Áudio do sistema não disponível neste browser/OS');
+      }
+
+      screenStreamRef.current = screenStream;
+
+      // Usar streamID com convenção "{myPeerID}-screen-0" para classificação backend
+      const shareIndex = 0;
+      const streamID = `${myPeerID}-screen-${shareIndex}`;
+      const screenMediaStream = new MediaStream(screenStream.getTracks());
+
+      screenStream.getTracks().forEach(track => {
+        pc.addTrack(track, screenMediaStream);
+
+        // Encerrar share quando usuário parar pelo browser
+        track.onended = () => {
+          stopScreenShare();
+        };
+      });
+
+      setIsScreenSharing(true);
+      void streamID; // referência para futura notificação signaling
+    } catch (err) {
+      console.error('Erro ao iniciar screen share', err);
+    }
+  }, [myPeerID]);
+
+  const stopScreenShare = useCallback(() => {
+    const screenStream = screenStreamRef.current;
+    if (screenStream) {
+      screenStream.getTracks().forEach(track => track.stop());
+      screenStreamRef.current = null;
+    }
+    setIsScreenSharing(false);
+  }, []);
 
   useEffect(() => {
     return () => {
-      // Cleanup on unmount if it was active
       if (wsRef.current?.readyState === WebSocket.OPEN) {
          disconnect();
       }
     };
   }, [disconnect]);
 
-  return { connect: connectOnce, disconnect, connected, remoteStreams, isMuted, toggleMute, stats, participants, myPeerID };
+  return {
+    connect: connectOnce,
+    disconnect,
+    connected,
+    remoteStreams,
+    localStream,
+    isMuted,
+    isCameraOn,
+    isScreenSharing,
+    toggleMute,
+    toggleCamera,
+    startScreenShare,
+    stopScreenShare,
+    stats,
+    participants,
+    myPeerID,
+  };
 }
