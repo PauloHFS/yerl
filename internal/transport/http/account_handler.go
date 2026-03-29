@@ -3,6 +3,8 @@ package http
 import (
 	"encoding/json"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/PauloHFS/yerl/internal/domain"
 )
@@ -17,6 +19,11 @@ func NewAccountHandler(service domain.AccountService) *AccountHandler {
 
 type RegisterRequest struct {
 	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
@@ -47,6 +54,31 @@ func (h *AccountHandler) Register(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AccountHandler) Login(w http.ResponseWriter, r *http.Request) {
-	// Lógica de autenticação e geração de token/cookies?
-	w.WriteHeader(http.StatusOK)
+	var req LoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	token, err := h.service.Login(r.Context(), req.Email, req.Password)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+
+	isProd := os.Getenv("APP_ENV") == "production"
+	http.SetCookie(w, &http.Cookie{
+		Name:     "token",
+		Value:    token,
+		HttpOnly: true,
+		Secure:   isProd,
+		Path:     "/",
+		Expires:  time.Now().Add(24 * time.Hour),
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]string{"message": "login feito com sucesso"}); err != nil {
+		http.Error(w, "erro ao serializar resposta", http.StatusInternalServerError)
+	}
 }

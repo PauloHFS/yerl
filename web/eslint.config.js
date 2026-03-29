@@ -22,6 +22,7 @@ export default defineConfig([
     ],
     rules: {
       'no-console': ['error', { allow: ['info', 'warn', 'error'] }],
+      'react-refresh/only-export-components': 'off',
     },
     languageOptions: {
       ecmaVersion: 2020,

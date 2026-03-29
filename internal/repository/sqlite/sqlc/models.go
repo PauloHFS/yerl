@@ -8,6 +8,14 @@ import (
 	"time"
 )
 
+type Account struct {
+	ID           string    `json:"id"`
+	Name         string    `json:"name"`
+	Email        string    `json:"email"`
+	PasswordHash string    `json:"password_hash"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
 type Channel struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
@@ -20,12 +28,4 @@ type Message struct {
 	SenderID  string    `json:"sender_id"`
 	Content   string    `json:"content"`
 	CreatedAt time.Time `json:"created_at"`
-}
-
-type User struct {
-	ID           string    `json:"id"`
-	Name         string    `json:"name"`
-	Email        string    `json:"email"`
-	PasswordHash string    `json:"password_hash"`
-	CreatedAt    time.Time `json:"created_at"`
 }

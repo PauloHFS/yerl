@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen} from '@testing-library/react';
 import { createMemoryHistory, createRootRoute, createRoute, createRouter, RouterProvider } from '@tanstack/react-router';
 import { Route as IndexRoute } from './index';
+import { type JSX } from 'react';
 
 function renderWithRouter(component: () => JSX.Element) {
   const rootRoute = createRootRoute()
