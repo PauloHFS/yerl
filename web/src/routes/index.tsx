@@ -19,6 +19,9 @@ export const Route = createFileRoute('/')({
               <Link to="/register" className="btn btn-primary">
                 Começar agora
               </Link>
+              <Link to="/login" className="btn btn-outline">
+                Login
+              </Link>
               <Link to="/canal" className="btn btn-outline">
                 Testar SFU (Voz)
               </Link>

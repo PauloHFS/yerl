@@ -1,5 +1,5 @@
 -- +goose Up
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE IF NOT EXISTS accounts (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     email TEXT NOT NULL,
@@ -27,4 +27,4 @@ CREATE TABLE IF NOT EXISTS messages (
 -- +goose Down
 DROP TABLE messages;
 DROP TABLE channels;
-DROP TABLE users;
+DROP TABLE accounts;

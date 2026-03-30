@@ -33,6 +33,7 @@ export async function apiClient<T>(endpoint: string, options?: RequestInit): Pro
 
   const config: RequestInit = {
     ...options,
+    credentials: "include",
     headers: {
       ...defaultHeaders,
       ...options?.headers,
@@ -43,16 +44,17 @@ export async function apiClient<T>(endpoint: string, options?: RequestInit): Pro
     const response = await fetch(url, config);
 
     if (!response.ok) {
-      let errorData: unknown;
+      const errorText = await response.text();
+      let errorData: APIErrorResponse | undefined;
+
       try {
-        errorData = await response.json();
+        errorData = JSON.parse(errorText) as APIErrorResponse;
       } catch {
-        errorData = await response.text();
+        errorData = { message: errorText };
       }
-      
-      const errorResponse = errorData as APIErrorResponse | null;
-      const errorMessage = errorResponse?.message ?? errorResponse?.error ?? `API Request Failed with status ${response.status}`;
-        
+
+      const errorMessage = errorData?.message ?? errorData?.error ?? errorText ?? `Erro na API com status ${response.status}`;
+
       throw new APIError(errorMessage, response.status, errorData);
     }
 

@@ -3,6 +3,7 @@ package http
 import (
 	"io/fs"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/PauloHFS/yerl/web"
@@ -16,7 +17,7 @@ func serveSPA(mux *http.ServeMux) {
 	if err != nil {
 		panic(err) // Se der erro aqui, a build ou o embed falhou
 	}
-	
+
 	fileServer := http.FileServer(http.FS(distFS))
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +53,10 @@ func NewRouter(
 	mux.HandleFunc("POST /api/accounts/login", accountHandler.Login)
 
 	// Agrupamento de rotas do domínio Message
-	mux.HandleFunc("POST /api/messages", messageHandler.Send)
+	mux.Handle(
+		"POST /api/messages",
+		AuthMiddleware(http.HandlerFunc(messageHandler.Send)),
+	)
 
 	// WebRTC SFU Signaling
 	mux.HandleFunc("GET /api/ws", sfuHandler.HandleWS)
@@ -74,7 +78,7 @@ func NewRouter(
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write([]byte(html))
 	})
-	
+
 	// Serve OpenAPI Spec
 	mux.Handle("GET /api/swagger.json", http.StripPrefix("/api/", http.FileServer(http.Dir("./docs"))))
 
@@ -83,11 +87,37 @@ func NewRouter(
 
 	// Aplicamos o middleware apenas nas rotas que não sejam o WebSocket
 	// para evitar problemas com o Hijacker/Upgrade do protocolo.
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return CORS(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/ws" {
 			mux.ServeHTTP(w, r)
 			return
 		}
 		LoggingMiddleware(mux).ServeHTTP(w, r)
+	}))
+}
+
+func CORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		origin := r.Header.Get("Origin")
+		allowedOrigin := os.Getenv("FRONTEND_URL")
+		if allowedOrigin == "" {
+			allowedOrigin = "http://localhost:5173"
+		}
+
+		if origin == allowedOrigin {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
+
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
 	})
 }
