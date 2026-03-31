@@ -1,5 +1,9 @@
 package http
 
+import (
+	"sync"
+)
+
 type Subscription struct {
 	Client    *ChatClient
 	ChannelID string
@@ -10,6 +14,11 @@ type BroadcastMessage struct {
 	Data      []byte
 }
 
+type hasClientQuery struct {
+	client *ChatClient
+	reply  chan bool
+}
+
 type ChatHub struct {
 	clients     map[*ChatClient]bool
 	channels    map[string]map[*ChatClient]bool
@@ -18,7 +27,9 @@ type ChatHub struct {
 	Subscribe   chan Subscription
 	Unsubscribe chan Subscription
 	Broadcast   chan BroadcastMessage
+	hasClientCh chan hasClientQuery
 	stop        chan struct{}
+	stopOnce    sync.Once
 }
 
 func NewChatHub() *ChatHub {
@@ -30,6 +41,7 @@ func NewChatHub() *ChatHub {
 		Subscribe:   make(chan Subscription),
 		Unsubscribe: make(chan Subscription),
 		Broadcast:   make(chan BroadcastMessage),
+		hasClientCh: make(chan hasClientQuery),
 		stop:        make(chan struct{}),
 	}
 }
@@ -85,6 +97,10 @@ func (h *ChatHub) Run() {
 				}
 			}
 
+		case q := <-h.hasClientCh:
+			_, ok := h.clients[q.client]
+			q.reply <- ok
+
 		case <-h.stop:
 			return
 		}
@@ -92,11 +108,11 @@ func (h *ChatHub) Run() {
 }
 
 func (h *ChatHub) Stop() {
-	close(h.stop)
+	h.stopOnce.Do(func() { close(h.stop) })
 }
 
 func (h *ChatHub) HasClient(c *ChatClient) bool {
-	// For testing only — not goroutine safe outside of tests with sleep
-	_, ok := h.clients[c]
-	return ok
+	reply := make(chan bool, 1)
+	h.hasClientCh <- hasClientQuery{client: c, reply: reply}
+	return <-reply
 }
