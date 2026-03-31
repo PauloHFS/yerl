@@ -8,6 +8,7 @@ import (
 
 	"github.com/PauloHFS/yerl/internal/repository/sqlite"
 	"github.com/PauloHFS/yerl/internal/service"
+	"github.com/PauloHFS/yerl/internal/service/sfu"
 	transporthttp "github.com/PauloHFS/yerl/internal/transport/http"
 	"github.com/PauloHFS/yerl/migrations"
 
@@ -69,7 +70,10 @@ func main() {
 	messageService := service.NewMessageService(messageRepo)
 	messageHandler := transporthttp.NewMessageHandler(messageService)
 
-	router := transporthttp.NewRouter(accountHandler, messageHandler)
+	roomManager := sfu.NewRoomManager()
+	sfuHandler := transporthttp.NewSFUHandler(roomManager)
+
+	router := transporthttp.NewRouter(accountHandler, messageHandler, sfuHandler)
 
 	slog.Info("server_starting", slog.String("addr", ":"+port))
 	if err := http.ListenAndServe(":"+port, router); err != nil {

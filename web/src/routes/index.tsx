@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
+import trumpiUrl from '../assets/trumpi.jpeg'
 
 export const Route = createFileRoute('/')({
   component: function HomePage() {
@@ -7,7 +8,10 @@ export const Route = createFileRoute('/')({
         <div className="hero-content text-center">
           <div className="max-w-md">
             <h1 className="text-5xl font-bold">Olá, Yerl!</h1>
-            <p className="py-6">
+            <div className="py-6 flex justify-center">
+              <img src={trumpiUrl} alt="Mission Accomplished" className="rounded-xl shadow-2xl max-w-sm" />
+            </div>
+            <p className="pb-6">
               Sua plataforma de mensagens embutida em um binário único.
               Segura, rápida e moderna.
             </p>
@@ -18,7 +22,9 @@ export const Route = createFileRoute('/')({
               <Link to="/login" className="btn btn-outline">
                 Login
               </Link>
-              <button className="btn btn-outline">Saiba mais</button>
+              <Link to="/canal" className="btn btn-outline">
+                Testar SFU (Voz)
+              </Link>
             </div>
           </div>
         </div>

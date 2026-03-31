@@ -19,6 +19,9 @@ type Account struct {
 type Channel struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
+	Type      string    `json:"type"`
+	UserLimit int64     `json:"user_limit"`
+	Bitrate   int64     `json:"bitrate"`
 	CreatedAt time.Time `json:"created_at"`
 }
 

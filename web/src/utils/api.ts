@@ -1,8 +1,14 @@
+export interface APIErrorResponse {
+  message?: string;
+  error?: string;
+  [key: string]: unknown;
+}
+
 export class APIError extends Error {
   public status: number;
-  public data?: any;
+  public data?: unknown;
 
-  constructor(message: string, status: number, data?: any) {
+  constructor(message: string, status: number, data?: unknown) {
     super(message);
     this.name = 'APIError';
     this.status = status;
@@ -38,19 +44,17 @@ export async function apiClient<T>(endpoint: string, options?: RequestInit): Pro
     const response = await fetch(url, config);
 
     if (!response.ok) {
-      const errorText = await response.text(); 
-      let errorData;
-      
+      const errorText = await response.text();
+      let errorData: APIErrorResponse | undefined;
+
       try {
-        errorData = JSON.parse(errorText);
+        errorData = JSON.parse(errorText) as APIErrorResponse;
       } catch {
-        errorData = { message: errorText }; 
+        errorData = { message: errorText };
       }
-      
-      const errorMessage = (errorData && (errorData.message || errorData.error)) 
-        || errorText
-        || `Erro na API com status ${response.status}`;
-        
+
+      const errorMessage = errorData?.message ?? errorData?.error ?? errorText ?? `Erro na API com status ${response.status}`;
+
       throw new APIError(errorMessage, response.status, errorData);
     }
 
@@ -61,7 +65,7 @@ export async function apiClient<T>(endpoint: string, options?: RequestInit): Pro
     }
     
     const text = await response.text();
-    return text ? JSON.parse(text) : ({} as T);
+    return (text ? JSON.parse(text) : {}) as T;
 
   } catch (error) {
     if (error instanceof APIError) {
