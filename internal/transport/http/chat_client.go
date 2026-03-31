@@ -30,18 +30,18 @@ type ChatMessage struct {
 }
 
 type ChatResponse struct {
-	Type    string      `json:"type"`
-	Payload interface{} `json:"payload"`
+	Type    string `json:"type"`
+	Payload any    `json:"payload"`
 }
 
 func (c *ChatClient) ReadPump() {
 	defer func() {
 		c.Hub.Unregister <- c
-		c.Conn.Close()
 	}()
 
 	c.Conn.SetReadLimit(maxMessageSize)
 	if err := c.Conn.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
+		slog.Error("chat ws: falha ao definir read deadline", "user_id", c.UserID, "err", err)
 		return
 	}
 	c.Conn.SetPongHandler(func(string) error {
@@ -79,14 +79,14 @@ func (c *ChatClient) WritePump() {
 	for {
 		select {
 		case message, ok := <-c.Send:
-			if err := c.Conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
-				return
-			}
 			if !ok {
+				_ = c.Conn.SetWriteDeadline(time.Now().Add(writeWait))
 				_ = c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
-
+			if err := c.Conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+				return
+			}
 			if err := c.Conn.WriteMessage(websocket.TextMessage, message); err != nil {
 				return
 			}
