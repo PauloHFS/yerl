@@ -44,6 +44,42 @@ func (q *Queries) CreateVoiceChannel(ctx context.Context, arg CreateVoiceChannel
 	return i, err
 }
 
+const listAllChannels = `-- name: ListAllChannels :many
+SELECT id, name, type, user_limit, bitrate, created_at
+FROM channels
+ORDER BY type ASC, name ASC
+`
+
+func (q *Queries) ListAllChannels(ctx context.Context) ([]Channel, error) {
+	rows, err := q.db.QueryContext(ctx, listAllChannels)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Channel
+	for rows.Next() {
+		var i Channel
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Type,
+			&i.UserLimit,
+			&i.Bitrate,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listVoiceChannels = `-- name: ListVoiceChannels :many
 SELECT id, name, type, user_limit, bitrate, created_at
 FROM channels
