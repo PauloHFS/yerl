@@ -3,6 +3,7 @@ package http_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -45,4 +46,18 @@ func TestChannelHandler_List(t *testing.T) {
 	assert.Len(t, channels, 2)
 	assert.Equal(t, "ch-dev", channels[0].ID)
 	assert.Equal(t, "ch-voz", channels[1].ID)
+}
+
+func TestChannelHandler_List_RepoError(t *testing.T) {
+	repo := &stubChannelRepo{
+		err: errors.New("db offline"),
+	}
+
+	handler := transporthttp.NewChannelHandler(repo)
+	req := httptest.NewRequest(http.MethodGet, "/api/channels", nil)
+	rec := httptest.NewRecorder()
+
+	handler.List(rec, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 }

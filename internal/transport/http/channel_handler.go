@@ -2,6 +2,7 @@ package http
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/PauloHFS/yerl/internal/domain"
@@ -24,6 +25,6 @@ func (h *ChannelHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(channels); err != nil {
-		http.Error(w, "erro ao serializar canais", http.StatusInternalServerError)
+		slog.Error("channel handler: erro ao serializar canais", "err", err)
 	}
 }
