@@ -1,6 +1,7 @@
 package http
 
 import (
+	"log/slog"
 	"sync"
 )
 
@@ -85,6 +86,7 @@ func (h *ChatHub) Run() {
 					case client.Send <- msg.Data:
 					default:
 						// Client buffer full — disconnect
+						slog.Warn("chat: buffer cheio, desconectando cliente", "user_id", client.UserID)
 						delete(h.clients, client)
 						close(client.Send)
 						for chID, subs := range h.channels {
@@ -102,6 +104,9 @@ func (h *ChatHub) Run() {
 			q.reply <- ok
 
 		case <-h.stop:
+			for client := range h.clients {
+				close(client.Send)
+			}
 			return
 		}
 	}
@@ -113,6 +118,10 @@ func (h *ChatHub) Stop() {
 
 func (h *ChatHub) HasClient(c *ChatClient) bool {
 	reply := make(chan bool, 1)
-	h.hasClientCh <- hasClientQuery{client: c, reply: reply}
-	return <-reply
+	select {
+	case h.hasClientCh <- hasClientQuery{client: c, reply: reply}:
+		return <-reply
+	case <-h.stop:
+		return false
+	}
 }
