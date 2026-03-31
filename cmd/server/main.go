@@ -68,12 +68,18 @@ func main() {
 
 	messageRepo := sqlite.NewMessageRepository(db)
 	messageService := service.NewMessageService(messageRepo)
-	messageHandler := transporthttp.NewMessageHandler(messageService)
+
+	channelRepo := sqlite.NewChannelRepository(db)
+	channelHandler := transporthttp.NewChannelHandler(channelRepo)
+
+	chatHub := transporthttp.NewChatHub()
+	go chatHub.Run()
+	chatHandler := transporthttp.NewChatHandler(messageService, channelRepo, chatHub)
 
 	roomManager := sfu.NewRoomManager()
 	sfuHandler := transporthttp.NewSFUHandler(roomManager)
 
-	router := transporthttp.NewRouter(accountHandler, messageHandler, sfuHandler)
+	router := transporthttp.NewRouter(accountHandler, channelHandler, chatHandler, sfuHandler)
 
 	slog.Info("server_starting", slog.String("addr", ":"+port))
 	if err := http.ListenAndServe(":"+port, router); err != nil {
