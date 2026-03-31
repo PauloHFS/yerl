@@ -9,11 +9,13 @@ import (
 )
 
 type channelRepository struct {
+	db      *sql.DB
 	queries *sqlc.Queries
 }
 
 func NewChannelRepository(db *sql.DB) domain.ChannelRepository {
 	return &channelRepository{
+		db:      db,
 		queries: sqlc.New(db),
 	}
 }
