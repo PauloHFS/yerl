@@ -7,6 +7,9 @@ afterEach(() => {
   cleanup();
 });
 
+// Mock scrollIntoView que jsdom não implementa
+Element.prototype.scrollIntoView = vi.fn();
+
 // jsdom não implementa Web Media APIs — mocks mínimos para compilar testes
 if (typeof MediaStream === 'undefined') {
   class MockMediaStream {
