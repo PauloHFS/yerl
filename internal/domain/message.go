@@ -11,7 +11,7 @@ type Message struct {
 	ID        string
 	ChannelID string
 	SenderID  string
-	SenderName string
+	SenderName	string
 	Content   string
 	CreatedAt time.Time
 }
