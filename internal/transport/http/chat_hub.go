@@ -1,0 +1,102 @@
+package http
+
+type Subscription struct {
+	Client    *ChatClient
+	ChannelID string
+}
+
+type BroadcastMessage struct {
+	ChannelID string
+	Data      []byte
+}
+
+type ChatHub struct {
+	clients     map[*ChatClient]bool
+	channels    map[string]map[*ChatClient]bool
+	Register    chan *ChatClient
+	Unregister  chan *ChatClient
+	Subscribe   chan Subscription
+	Unsubscribe chan Subscription
+	Broadcast   chan BroadcastMessage
+	stop        chan struct{}
+}
+
+func NewChatHub() *ChatHub {
+	return &ChatHub{
+		clients:     make(map[*ChatClient]bool),
+		channels:    make(map[string]map[*ChatClient]bool),
+		Register:    make(chan *ChatClient),
+		Unregister:  make(chan *ChatClient),
+		Subscribe:   make(chan Subscription),
+		Unsubscribe: make(chan Subscription),
+		Broadcast:   make(chan BroadcastMessage),
+		stop:        make(chan struct{}),
+	}
+}
+
+func (h *ChatHub) Run() {
+	for {
+		select {
+		case client := <-h.Register:
+			h.clients[client] = true
+
+		case client := <-h.Unregister:
+			if _, ok := h.clients[client]; ok {
+				delete(h.clients, client)
+				close(client.Send)
+				for channelID, subscribers := range h.channels {
+					delete(subscribers, client)
+					if len(subscribers) == 0 {
+						delete(h.channels, channelID)
+					}
+				}
+			}
+
+		case sub := <-h.Subscribe:
+			if h.channels[sub.ChannelID] == nil {
+				h.channels[sub.ChannelID] = make(map[*ChatClient]bool)
+			}
+			h.channels[sub.ChannelID][sub.Client] = true
+
+		case sub := <-h.Unsubscribe:
+			if subscribers, ok := h.channels[sub.ChannelID]; ok {
+				delete(subscribers, sub.Client)
+				if len(subscribers) == 0 {
+					delete(h.channels, sub.ChannelID)
+				}
+			}
+
+		case msg := <-h.Broadcast:
+			if subscribers, ok := h.channels[msg.ChannelID]; ok {
+				for client := range subscribers {
+					select {
+					case client.Send <- msg.Data:
+					default:
+						// Client buffer full — disconnect
+						delete(h.clients, client)
+						close(client.Send)
+						for chID, subs := range h.channels {
+							delete(subs, client)
+							if len(subs) == 0 {
+								delete(h.channels, chID)
+							}
+						}
+					}
+				}
+			}
+
+		case <-h.stop:
+			return
+		}
+	}
+}
+
+func (h *ChatHub) Stop() {
+	close(h.stop)
+}
+
+func (h *ChatHub) HasClient(c *ChatClient) bool {
+	// For testing only — not goroutine safe outside of tests with sleep
+	_, ok := h.clients[c]
+	return ok
+}
