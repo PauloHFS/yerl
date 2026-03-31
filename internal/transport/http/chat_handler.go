@@ -18,7 +18,6 @@ type ChatHandler struct {
 	hub            *ChatHub
 	validChannels  map[string]bool
 	channelsMu     sync.RWMutex
-	channelsOnce   sync.Once
 }
 
 func NewChatHandler(
@@ -50,7 +49,13 @@ func (h *ChatHandler) loadChannels() {
 }
 
 var chatUpgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
+	CheckOrigin: func(r *http.Request) bool {
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			return true
+		}
+		return origin == "https://"+r.Host || origin == "http://"+r.Host
+	},
 }
 
 func (h *ChatHandler) HandleWS(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +71,7 @@ func (h *ChatHandler) HandleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.channelsOnce.Do(h.loadChannels)
+	h.loadChannels()
 
 	conn, err := chatUpgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -148,6 +153,8 @@ func (h *ChatHandler) handleMessage(client *ChatClient, msg ChatMessage) {
 	case "unsubscribe":
 		var payload subscribePayload
 		if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+			slog.Warn("chat: payload inválido", "type", msg.Type, "user_id", client.UserID, "err", err)
+			client.SendJSON(ChatResponse{Type: "error", Payload: errorPayload{Message: "payload inválido"}})
 			return
 		}
 		h.hub.Unsubscribe <- Subscription{Client: client, ChannelID: payload.ChannelID}
@@ -199,6 +206,8 @@ func (h *ChatHandler) handleMessage(client *ChatClient, msg ChatMessage) {
 	case "get-history":
 		var payload getHistoryPayload
 		if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+			slog.Warn("chat: payload inválido", "type", msg.Type, "user_id", client.UserID, "err", err)
+			client.SendJSON(ChatResponse{Type: "error", Payload: errorPayload{Message: "payload inválido"}})
 			return
 		}
 		h.channelsMu.RLock()
@@ -218,7 +227,8 @@ func (h *ChatHandler) sendHistory(client *ChatClient, channelID string, limit, o
 	}
 	messages, err := h.messageService.GetHistory(context.Background(), channelID, limit, offset)
 	if err != nil {
-		slog.Error("chat: erro ao buscar historico", "err", err)
+		slog.Error("chat: erro ao buscar histórico", "channel_id", channelID, "err", err)
+		client.SendJSON(ChatResponse{Type: "error", Payload: errorPayload{Message: "erro ao carregar histórico do canal"}})
 		return
 	}
 

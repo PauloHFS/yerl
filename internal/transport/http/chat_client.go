@@ -37,6 +37,7 @@ type ChatResponse struct {
 func (c *ChatClient) ReadPump() {
 	defer func() {
 		c.Hub.Unregister <- c
+		c.Conn.Close()
 	}()
 
 	c.Conn.SetReadLimit(maxMessageSize)
@@ -85,17 +86,21 @@ func (c *ChatClient) WritePump() {
 				return
 			}
 			if err := c.Conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+				slog.Warn("chat ws: falha ao definir write deadline", "user_id", c.UserID, "err", err)
 				return
 			}
 			if err := c.Conn.WriteMessage(websocket.TextMessage, message); err != nil {
+				slog.Warn("chat ws: falha ao escrever mensagem", "user_id", c.UserID, "err", err)
 				return
 			}
 
 		case <-ticker.C:
 			if err := c.Conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+				slog.Warn("chat ws: falha ao definir write deadline (ping)", "user_id", c.UserID, "err", err)
 				return
 			}
 			if err := c.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				slog.Warn("chat ws: falha ao enviar ping", "user_id", c.UserID, "err", err)
 				return
 			}
 		}
