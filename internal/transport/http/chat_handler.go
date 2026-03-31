@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"sync"
 
 	"github.com/PauloHFS/yerl/internal/domain"
 	"github.com/PauloHFS/yerl/internal/service"
@@ -16,6 +17,8 @@ type ChatHandler struct {
 	channelRepo    domain.ChannelRepository
 	hub            *ChatHub
 	validChannels  map[string]bool
+	channelsMu     sync.RWMutex
+	channelsOnce   sync.Once
 }
 
 func NewChatHandler(
@@ -41,7 +44,9 @@ func (h *ChatHandler) loadChannels() {
 	for _, ch := range channels {
 		valid[ch.ID] = true
 	}
+	h.channelsMu.Lock()
 	h.validChannels = valid
+	h.channelsMu.Unlock()
 }
 
 var chatUpgrader = websocket.Upgrader{
@@ -61,9 +66,7 @@ func (h *ChatHandler) HandleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(h.validChannels) == 0 {
-		h.loadChannels()
-	}
+	h.channelsOnce.Do(h.loadChannels)
 
 	conn, err := chatUpgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -132,7 +135,10 @@ func (h *ChatHandler) handleMessage(client *ChatClient, msg ChatMessage) {
 			client.SendJSON(ChatResponse{Type: "error", Payload: errorPayload{Message: "payload invalido"}})
 			return
 		}
-		if !h.validChannels[payload.ChannelID] {
+		h.channelsMu.RLock()
+		valid := h.validChannels[payload.ChannelID]
+		h.channelsMu.RUnlock()
+		if !valid {
 			client.SendJSON(ChatResponse{Type: "error", Payload: errorPayload{Message: "canal nao encontrado"}})
 			return
 		}
@@ -152,7 +158,10 @@ func (h *ChatHandler) handleMessage(client *ChatClient, msg ChatMessage) {
 			client.SendJSON(ChatResponse{Type: "error", Payload: errorPayload{Message: "payload invalido"}})
 			return
 		}
-		if !h.validChannels[payload.ChannelID] {
+		h.channelsMu.RLock()
+		validCh := h.validChannels[payload.ChannelID]
+		h.channelsMu.RUnlock()
+		if !validCh {
 			client.SendJSON(ChatResponse{Type: "error", Payload: errorPayload{Message: "canal nao encontrado"}})
 			return
 		}
@@ -179,12 +188,24 @@ func (h *ChatHandler) handleMessage(client *ChatClient, msg ChatMessage) {
 				CreatedAt:  savedMsg.CreatedAt.Format("2006-01-02T15:04:05Z"),
 			},
 		}
-		data, _ := json.Marshal(broadcast)
+		data, err := json.Marshal(broadcast)
+		if err != nil {
+			slog.Error("chat: erro ao serializar broadcast", "err", err)
+			client.SendJSON(ChatResponse{Type: "error", Payload: errorPayload{Message: "erro interno"}})
+			return
+		}
 		h.hub.Broadcast <- BroadcastMessage{ChannelID: payload.ChannelID, Data: data}
 
 	case "get-history":
 		var payload getHistoryPayload
 		if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+			return
+		}
+		h.channelsMu.RLock()
+		validHist := h.validChannels[payload.ChannelID]
+		h.channelsMu.RUnlock()
+		if !validHist {
+			client.SendJSON(ChatResponse{Type: "error", Payload: errorPayload{Message: "canal nao encontrado"}})
 			return
 		}
 		h.sendHistory(client, payload.ChannelID, payload.Limit, payload.Offset)
