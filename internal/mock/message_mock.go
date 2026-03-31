@@ -70,6 +70,21 @@ func (mr *MockMessageRepositoryMockRecorder) GetByChannelID(ctx, channelID, limi
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByChannelID", reflect.TypeOf((*MockMessageRepository)(nil).GetByChannelID), ctx, channelID, limit, offset)
 }
 
+// GetByChannelIDWithSender mocks base method.
+func (m *MockMessageRepository) GetByChannelIDWithSender(ctx context.Context, channelID string, limit, offset int) ([]*domain.Message, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetByChannelIDWithSender", ctx, channelID, limit, offset)
+	ret0, _ := ret[0].([]*domain.Message)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetByChannelIDWithSender indicates an expected call of GetByChannelIDWithSender.
+func (mr *MockMessageRepositoryMockRecorder) GetByChannelIDWithSender(ctx, channelID, limit, offset any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByChannelIDWithSender", reflect.TypeOf((*MockMessageRepository)(nil).GetByChannelIDWithSender), ctx, channelID, limit, offset)
+}
+
 // MockMessageService is a mock of MessageService interface.
 type MockMessageService struct {
 	ctrl     *gomock.Controller

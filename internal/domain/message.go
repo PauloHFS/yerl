@@ -19,6 +19,7 @@ type Message struct {
 type MessageRepository interface {
 	Create(ctx context.Context, msg *Message) error
 	GetByChannelID(ctx context.Context, channelID string, limit, offset int) ([]*Message, error)
+	GetByChannelIDWithSender(ctx context.Context, channelID string, limit, offset int) ([]*Message, error)
 }
 
 type MessageService interface {

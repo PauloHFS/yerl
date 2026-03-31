@@ -43,5 +43,5 @@ func (s *messageService) GetHistory(ctx context.Context, channelID string, limit
 	if limit <= 0 || limit > 100 {
 		limit = 50
 	}
-	return s.repo.GetByChannelID(ctx, channelID, limit, offset)
+	return s.repo.GetByChannelIDWithSender(ctx, channelID, limit, offset)
 }
