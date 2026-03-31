@@ -1,4 +1,3 @@
-import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -67,7 +66,7 @@ describe('ControlBar', () => {
   });
 
   it('botão de microfone exibe estado mutado', () => {
-    render(<ControlBar {...defaultProps} isMuted title="Desmutar" />);
+    render(<ControlBar {...defaultProps} isMuted />);
     // Quando mutado, o title do botão muda para "Desmutar"
     expect(screen.getByTitle('Desmutar')).toBeInTheDocument();
   });
