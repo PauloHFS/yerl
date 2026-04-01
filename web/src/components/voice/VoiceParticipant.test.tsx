@@ -1,4 +1,3 @@
-import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { VoiceParticipant } from './VoiceParticipant';
@@ -8,19 +7,19 @@ const participant: Participant = { id: 'p1', name: 'Ana Souza' };
 
 const goodStats: WebRTCStats = {
   latency: 50,
-  outbound: { bitrate: 500 },
+  outbound: { bitrate: 500, packetsSent: 1000 },
   inbound: { bitrate: 400, jitter: 2, packetsLost: 0 },
 };
 
 const mediumStats: WebRTCStats = {
   latency: 150,
-  outbound: { bitrate: 300 },
+  outbound: { bitrate: 300, packetsSent: 500 },
   inbound: { bitrate: 200, jitter: 10, packetsLost: 2 },
 };
 
 const badStats: WebRTCStats = {
   latency: 400,
-  outbound: { bitrate: 100 },
+  outbound: { bitrate: 100, packetsSent: 100 },
   inbound: { bitrate: 50, jitter: 50, packetsLost: 10 },
 };
 

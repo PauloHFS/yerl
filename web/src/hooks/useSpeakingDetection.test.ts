@@ -120,7 +120,7 @@ describe('useSpeakingDetection', () => {
     });
 
     // Muda para null → deve voltar a false
-    rerender({ s: null });
+    rerender({ s: null as unknown as MediaStream });
     expect(result.current).toBe(false);
   });
 });

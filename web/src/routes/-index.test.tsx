@@ -3,7 +3,6 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { createMemoryHistory, createRootRoute, createRoute, createRouter, RouterProvider } from '@tanstack/react-router';
 import { Route as IndexRoute } from './index';
-import { type JSX } from 'react';
 
 function renderWithRouter(component: () => React.JSX.Element) {
   const rootRoute = createRootRoute()

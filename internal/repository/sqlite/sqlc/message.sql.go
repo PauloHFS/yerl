@@ -76,3 +76,57 @@ func (q *Queries) GetMessagesByChannelID(ctx context.Context, arg GetMessagesByC
 	}
 	return items, nil
 }
+
+const getMessagesByChannelIDWithSender = `-- name: GetMessagesByChannelIDWithSender :many
+SELECT m.id, m.channel_id, m.sender_id, a.name as sender_name, m.content, m.created_at
+FROM messages m
+JOIN accounts a ON m.sender_id = a.id
+WHERE m.channel_id = ?
+ORDER BY m.created_at DESC
+LIMIT ? OFFSET ?
+`
+
+type GetMessagesByChannelIDWithSenderParams struct {
+	ChannelID string `json:"channel_id"`
+	Limit     int64  `json:"limit"`
+	Offset    int64  `json:"offset"`
+}
+
+type GetMessagesByChannelIDWithSenderRow struct {
+	ID         string    `json:"id"`
+	ChannelID  string    `json:"channel_id"`
+	SenderID   string    `json:"sender_id"`
+	SenderName string    `json:"sender_name"`
+	Content    string    `json:"content"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+func (q *Queries) GetMessagesByChannelIDWithSender(ctx context.Context, arg GetMessagesByChannelIDWithSenderParams) ([]GetMessagesByChannelIDWithSenderRow, error) {
+	rows, err := q.db.QueryContext(ctx, getMessagesByChannelIDWithSender, arg.ChannelID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetMessagesByChannelIDWithSenderRow
+	for rows.Next() {
+		var i GetMessagesByChannelIDWithSenderRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChannelID,
+			&i.SenderID,
+			&i.SenderName,
+			&i.Content,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

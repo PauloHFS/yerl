@@ -53,3 +53,28 @@ func (r *messageRepository) GetByChannelID(ctx context.Context, channelID string
 
 	return messages, nil
 }
+
+func (r *messageRepository) GetByChannelIDWithSender(ctx context.Context, channelID string, limit, offset int) ([]*domain.Message, error) {
+	rows, err := r.queries.GetMessagesByChannelIDWithSender(ctx, sqlc.GetMessagesByChannelIDWithSenderParams{
+		ChannelID: channelID,
+		Limit:     int64(limit),
+		Offset:    int64(offset),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	messages := make([]*domain.Message, 0, len(rows))
+	for _, row := range rows {
+		messages = append(messages, &domain.Message{
+			ID:         row.ID,
+			ChannelID:  row.ChannelID,
+			SenderID:   row.SenderID,
+			SenderName: row.SenderName,
+			Content:    row.Content,
+			CreatedAt:  row.CreatedAt,
+		})
+	}
+
+	return messages, nil
+}
